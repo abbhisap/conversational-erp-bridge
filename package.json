@@ -8,7 +8,7 @@
   "private": true,
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev": "ts-node src/server.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "test": "jest --coverage",
@@ -19,7 +19,7 @@
     "prebuild": "npm run clean"
   },
   "dependencies": {
-    "axios": "^1.7.2",
+    "axios": "^1.13.6",
     "dotenv": "^16.6.1",
     "express": "^4.19.2",
     "fastify": "^5.8.2",
