@@ -1,0 +1,60 @@
+{
+  "name": "conversational-erp-bridge",
+  "version": "1.0.0",
+  "description": "Intelligent middleware that translates WhatsApp commands into SAP PS BAPI calls via a Clean Core Side-by-Side architecture",
+  "main": "dist/index.js",
+  "author": "Your Name",
+  "license": "ISC",
+  "private": true,
+
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "clean": "rimraf dist",
+    "prebuild": "npm run clean"
+  },
+
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "axios": "^1.7.2",
+    "redis": "^4.6.14",
+    "winston": "^3.13.0",
+    "zod": "^3.23.8"
+  },
+
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.14.2",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.7",
+    "ts-jest": "^29.1.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/tests"],
+    "testMatch": ["**/*.test.ts"],
+    "collectCoverageFrom": ["src/**/*.ts"],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov"]
+  },
+
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
