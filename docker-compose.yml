@@ -1,0 +1,56 @@
+networks:
+  erp_network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local
+
+services:
+
+  redis:
+    image: redis:7-alpine
+    container_name: erp_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - erp_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: erp_app
+    restart: always
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - REDIS_URL=redis://erp_redis:6379
+      - NODE_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - erp_network
+    volumes:
+      - ./logs:/app/logs
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: erp_tunnel
+    restart: always
+    command: tunnel --no-autoupdate --url http://erp_app:3000
+    depends_on:
+      - app
+    networks:
+      - erp_network

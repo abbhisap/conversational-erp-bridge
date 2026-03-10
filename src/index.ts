@@ -1,91 +1,82 @@
-// src/index.ts — This is your test harness that proves Step 1 works
+console.log('🚀 SAP BRIDGE VERSION 2.0 IS LIVE');
+import express, { Request, Response } from 'express';
+import dotenv from 'dotenv';
+import Redis from 'ioredis';
 
-import { SAPMockAdapter } from './adapters/sap-mock.adapter';
-import { config } from './config';
+dotenv.config();
 
-async function runStep1Test() {
-  console.log('='.repeat(50));
-  console.log('  SAP MOCK ADAPTER - STEP 1 VALIDATION TEST');
-  console.log(`  Mode: ${config.SAP_MODE.toUpperCase()}`);
-  console.log('='.repeat(50));
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  const sap = new SAPMockAdapter();
+// --- STEP 1: BODY PARSERS (Must be at the top) ---
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // ── TEST 1: Connection ──────────────────────────────────────
-  console.log('\n[TEST 1] Testing connection...');
-  await sap.connect();
-  console.log('Result: PASSED ✅\n');
+// --- STEP 2: THE SPY MIDDLEWARE ---
+// This will log EVERY request that hits your server
+app.use((req, res, next) => {
+  console.log(`📡 [${new Date().toISOString()}] Incoming: ${req.method} ${req.url}`);
+  next();
+});
 
-  // ── TEST 2: Read existing project ───────────────────────────
-  console.log('[TEST 2] Reading existing project P-2024-001...');
-  const projectInfo = await sap.getProjectInfo('P-2024-001');
-  console.log('Result:', JSON.stringify(projectInfo, null, 2));
-  console.log(projectInfo.success ? 'PASSED ✅' : 'FAILED ❌');
+// 1. Initialize Redis Connection
+const redis = new Redis(process.env.REDIS_URL || 'redis://erp_redis:6379');
 
-  // ── TEST 3: Create a new project ────────────────────────────
-  console.log('\n[TEST 3] Creating new project P-2024-NEW...');
-  const createResult = await sap.createProject({
-    projectDefinition: 'P-2024-NEW',
-    description: 'New Test Project via WhatsApp',
-    companyCode: '1000',
-    controllingArea: 'A000',
-    plant: '1001',
-    startDate: '2024-06-01',
-    endDate: '2025-06-01',
-    responsiblePerson: 'TEST.USER'
-  });
-  console.log('Result:', JSON.stringify(createResult, null, 2));
-  console.log(createResult.success ? 'PASSED ✅' : 'FAILED ❌');
+redis.on('connect', () => console.log('[REDIS] ✅ Connected to Redis'));
+redis.on('error', (err: any) => console.error('[REDIS] ❌ Connection error:', err));
 
-  // ── TEST 4: Duplicate project error handling ─────────────────
-  console.log('\n[TEST 4] Testing duplicate project error...');
-  const duplicateResult = await sap.createProject({
-    projectDefinition: 'P-2024-001',   // Already exists!
-    description: 'Should fail',
-    companyCode: '1000',
-    controllingArea: 'A000',
-    plant: '1001',
-    startDate: '2024-01-01',
-    endDate: '2024-12-31',
-    responsiblePerson: 'TEST.USER'
-  });
-  console.log('Result:', duplicateResult.RETURN[0].MESSAGE);
-  console.log(!duplicateResult.success ? 'PASSED ✅ (correctly rejected)' : 'FAILED ❌');
+// 2. Health Check Route
+app.get('/health', (req: Request, res: Response) => {
+  res.status(200).json({ status: 'OK', bridge: 'Active' });
+});
 
-  // ── TEST 5: Invalid company code ────────────────────────────
-  console.log('\n[TEST 5] Testing invalid company code error...');
-  const invalidResult = await sap.createProject({
-    projectDefinition: 'P-2024-ERR',
-    description: 'Should fail on company code',
-    companyCode: '9999',               // Does not exist!
-    controllingArea: 'A000',
-    plant: '1001',
-    startDate: '2024-01-01',
-    endDate: '2024-12-31',
-    responsiblePerson: 'TEST.USER'
-  });
-  console.log('Result:', invalidResult.RETURN[0].MESSAGE);
-  console.log(!invalidResult.success ? 'PASSED ✅ (correctly rejected)' : 'FAILED ❌');
+// 3. Meta Webhook Verification (GET)
+app.get('/webhook', (req: Request, res: Response) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
 
-  // ── TEST 6: Release a project ────────────────────────────────
-  console.log('\n[TEST 6] Releasing project P-2024-NEW...');
-  const releaseResult = await sap.releaseProject('P-2024-NEW');
-  console.log(releaseResult.success ? 'PASSED ✅' : 'FAILED ❌');
+  console.log(`🔍 Verification Attempt - Mode: ${mode}, Token: ${token}`);
 
-  // ── TEST 7: Commit and Rollback ──────────────────────────────
-  console.log('\n[TEST 7] Testing commit...');
-  await sap.commit();
-  console.log('PASSED ✅');
+  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+    console.log('✅ Webhook Verified by Meta!');
+    res.status(200).send(challenge);
+  } else {
+    console.log('❌ Webhook Verification Failed.');
+    res.sendStatus(403);
+  }
+});
 
-  console.log('\n[TEST 8] Testing rollback...');
-  await sap.rollback();
-  console.log('PASSED ✅');
+// 4. WhatsApp Message Receiver (POST)
+app.post('/webhook', (req: Request, res: Response) => {
+  console.log('📦 POST Request received at /webhook');
+  
+  const body = req.body;
 
-  // ── SUMMARY ─────────────────────────────────────────────────
-  console.log('\n' + '='.repeat(50));
-  console.log('  STEP 1 COMPLETE - Mock Adapter is working');
-  console.log('  Your middleware can now be built on top of this');
-  console.log('='.repeat(50));
-}
+  // Log the first bit of the body to see if it's empty
+  console.log('📄 Body Received:', JSON.stringify(body).substring(0, 100) + '...');
 
-runStep1Test().catch(console.error);
+  if (body.object === 'whatsapp_business_account') {
+    if (body.entry?.[0].changes?.[0].value.messages) {
+      const message = body.entry[0].changes[0].value.messages[0];
+      const from = message.from;
+      const msgBody = message.text?.body || "No text content";
+
+      console.log(`📩 REAL MESSAGE! From: ${from}, Content: ${msgBody}`);
+
+      // Future SAP PS Triggering logic goes here
+    } else {
+      console.log('⚠️ Received WhatsApp event, but no message content found.');
+    }
+    res.sendStatus(200);
+  } else {
+    console.log('❓ Received POST request, but not from WhatsApp Business Account.');
+    res.sendStatus(404);
+  }
+});
+
+// 5. Start Server
+app.listen(PORT, () => {
+  console.log(`[SAP MOCK] ✅ Connected successfully`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
